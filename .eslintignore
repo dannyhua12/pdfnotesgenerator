@@ -1,0 +1,3 @@
+# Generated Prisma files
+lib/generated/**/*
+**/generated/**/* 

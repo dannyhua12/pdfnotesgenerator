@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { Document } from "@langchain/core/documents";
-import { writeFile, unlink } from "fs/promises";
 import { join } from "path";
-import { tmpdir } from "os";
 
 // Check if API key exists
 if (!process.env.OPENAI_API_KEY) {
@@ -12,37 +10,23 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY.trim(),
-  dangerouslyAllowBrowser: true
+  apiKey: process.env.OPENAI_API_KEY.trim()
 });
 
 export async function POST(request: NextRequest) {
-  let tempFilePath: string | null = null;
-  
   try {
-    // Parse JSON body
     const body = await request.json();
     const { filename } = body;
 
     if (!filename) {
-      console.error("No filename provided");
       return NextResponse.json({ error: "No filename provided" }, { status: 400 });
     }
 
-    // Construct the full path to the uploaded file
     const filePath = join(process.cwd(), 'uploads', filename);
-    console.log("Processing PDF at path:", filePath);
-
-    // Use LangChain PDFLoader with the full file path
     const loader = new PDFLoader(filePath);
     const docs = await loader.load();
-    console.log("PDF loaded successfully, pages:", docs.length);
-
     const text = docs.map((doc: Document) => doc.pageContent).join("\n\n");
-    console.log("Text extracted, length:", text.length);
 
-    // Send to OpenAI for notes
-    console.log("Sending to OpenAI...");
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-4",
@@ -94,12 +78,10 @@ ${text}`,
       });
 
       return NextResponse.json({ notes: completion.choices[0].message.content });
-    } catch (gptError: any) {
-      console.error("OpenAI API error:", gptError);
-      return NextResponse.json({ error: "OpenAI request failed", details: gptError.message }, { status: 500 });
+    } catch (gptError: unknown) {
+      return NextResponse.json({ error: "OpenAI request failed", details: gptError instanceof Error ? gptError.message : "Unknown error" }, { status: 500 });
     }
   } catch (error) {
-    console.error("Error in generate-notes API:", error);
     return NextResponse.json(
       {
         error: "Failed to process PDF",

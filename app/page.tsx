@@ -1,6 +1,5 @@
 'use client'
 
-import Image from "next/image";
 import { useState, useCallback, useRef } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -13,10 +12,35 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [isGeneratingNotes, setIsGeneratingNotes] = useState(false);
   const [notes, setNotes] = useState<string | null>(null);
-  const [currentFile, setCurrentFile] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = async (file: File) => {
+  const generateNotes = useCallback(async (filename: string) => {
+    setIsGeneratingNotes(true);
+    try {
+      const response = await fetch('/api/generate-notes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filename }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate notes' }));
+        throw new Error(errorData.error || 'Failed to generate notes');
+      }
+
+      const data = await response.json();
+      setNotes(data.notes);
+      setUploadStatus('Notes generated successfully!');
+    } catch (error) {
+      setUploadStatus(error instanceof Error ? error.message : 'Failed to generate notes');
+    } finally {
+      setIsGeneratingNotes(false);
+    }
+  }, []);
+
+  const handleFileUpload = useCallback(async (file: File) => {
     if (!file) return;
 
     setIsUploading(true);
@@ -39,44 +63,14 @@ export default function Home() {
       }
 
       setUploadStatus('Upload successful! Generating notes...');
-      setCurrentFile(data.filename);
       
-      // Generate notes
       await generateNotes(data.filename);
     } catch (error) {
-      console.error('Upload error:', error);
       setUploadStatus(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       setIsUploading(false);
     }
-  };
-
-  const generateNotes = async (filename: string) => {
-    setIsGeneratingNotes(true);
-    try {
-      const response = await fetch('/api/generate-notes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ filename }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Failed to generate notes' }));
-        throw new Error(errorData.error || 'Failed to generate notes');
-      }
-
-      const data = await response.json();
-      setNotes(data.notes);
-      setUploadStatus('Notes generated successfully!');
-    } catch (error) {
-      console.error('Generate notes error:', error);
-      setUploadStatus(error instanceof Error ? error.message : 'Failed to generate notes');
-    } finally {
-      setIsGeneratingNotes(false);
-    }
-  };
+  }, [generateNotes, setIsUploading, setUploadStatus, setNotes]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -87,7 +81,7 @@ export default function Home() {
     } else {
       setUploadStatus('Please upload a PDF file');
     }
-  }, []);
+  }, [handleFileUpload]);
 
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
