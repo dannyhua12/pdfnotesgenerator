@@ -3,6 +3,12 @@ import OpenAI from "openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { Document } from "@langchain/core/documents";
 import { join } from "path";
+import { unlink } from 'fs/promises';
+import { existsSync } from 'fs';
+
+// Constants
+const MAX_TOKENS = 8000; // GPT-4 context window limit
+const UPLOAD_DIR = join(process.cwd(), 'uploads');
 
 // Check if API key exists
 if (!process.env.OPENAI_API_KEY) {
@@ -14,6 +20,8 @@ const openai = new OpenAI({
 });
 
 export async function POST(request: NextRequest) {
+  let filePath: string | null = null;
+  
   try {
     const body = await request.json();
     const { filename } = body;
@@ -22,10 +30,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No filename provided" }, { status: 400 });
     }
 
-    const filePath = join(process.cwd(), 'uploads', filename);
+    filePath = join(UPLOAD_DIR, filename);
+
+    // Check if file exists
+    if (!existsSync(filePath)) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+
     const loader = new PDFLoader(filePath);
     const docs = await loader.load();
     const text = docs.map((doc: Document) => doc.pageContent).join("\n\n");
+
+    // Estimate token count (rough estimation)
+    const estimatedTokens = text.length / 4;
+    if (estimatedTokens > MAX_TOKENS) {
+      return NextResponse.json(
+        { error: "PDF content too large to process. Please use a shorter document." },
+        { status: 400 }
+      );
+    }
 
     try {
       const completion = await openai.chat.completions.create({
@@ -77,9 +100,35 @@ ${text}`,
         ],
       });
 
+      // Clean up the uploaded file after processing
+      try {
+        await unlink(filePath);
+      } catch (cleanupError) {
+        console.error('Failed to delete file:', cleanupError);
+        // Don't throw error as the main operation succeeded
+      }
+
       return NextResponse.json({ notes: completion.choices[0].message.content });
     } catch (gptError: unknown) {
-      return NextResponse.json({ error: "OpenAI request failed", details: gptError instanceof Error ? gptError.message : "Unknown error" }, { status: 500 });
+      // Handle specific OpenAI errors
+      if (gptError instanceof Error) {
+        if (gptError.message.toLowerCase().includes('token')) {
+          return NextResponse.json(
+            { error: "Token limit exceeded. Please use a shorter document." },
+            { status: 400 }
+          );
+        }
+        if (gptError.message.toLowerCase().includes('rate')) {
+          return NextResponse.json(
+            { error: "Rate limit exceeded. Please try again later." },
+            { status: 429 }
+          );
+        }
+      }
+      return NextResponse.json(
+        { error: "OpenAI request failed", details: gptError instanceof Error ? gptError.message : "Unknown error" },
+        { status: 500 }
+      );
     }
   } catch (error) {
     return NextResponse.json(
@@ -89,5 +138,14 @@ ${text}`,
       },
       { status: 500 }
     );
+  } finally {
+    // Ensure file cleanup even if an error occurred
+    if (filePath && existsSync(filePath)) {
+      try {
+        await unlink(filePath);
+      } catch (cleanupError) {
+        console.error('Failed to delete file in cleanup:', cleanupError);
+      }
+    }
   }
 }

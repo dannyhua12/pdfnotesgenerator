@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, unlink } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { randomUUID } from 'crypto';
+import path from 'path';
+
+// Constants
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const UPLOAD_DIR = join(process.cwd(), 'uploads');
 
 export async function POST(request: Request) {
   try {
@@ -22,22 +28,33 @@ export async function POST(request: Request) {
       );
     }
 
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: 'File size too large. Maximum size is 10MB' },
+        { status: 400 }
+      );
+    }
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const uploadDir = join(process.cwd(), 'uploads');
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
+    // Create uploads directory if it doesn't exist
+    if (!existsSync(UPLOAD_DIR)) {
+      await mkdir(UPLOAD_DIR, { recursive: true });
     }
 
-    const filePath = join(uploadDir, file.name);
+    // Generate safe filename
+    const fileExtension = path.extname(file.name).toLowerCase();
+    const safeFilename = `${randomUUID()}${fileExtension}`;
+    const filePath = join(UPLOAD_DIR, safeFilename);
     
     try {
       await writeFile(filePath, buffer);
 
       return NextResponse.json({
         message: 'File uploaded successfully',
-        filename: file.name,
+        filename: safeFilename, // Return the safe filename instead of original
+        originalName: file.name,
         size: file.size
       });
     } catch {
