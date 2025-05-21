@@ -61,6 +61,7 @@ export default function Home() {
           data: {
             full_name: name,
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       if (error) throw error;
