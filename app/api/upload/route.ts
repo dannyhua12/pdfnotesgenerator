@@ -1,7 +1,14 @@
-import { NextResponse } from 'next/server';
+import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
 
 // Constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 // Helper function to generate UUID using Web Crypto API
 function generateUUID() {
@@ -22,14 +29,14 @@ function getFileExtension(filename: string): string {
   return parts.length > 1 ? `.${parts[parts.length - 1].toLowerCase()}` : '';
 }
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const formData = await req.formData();
+    const file = formData.get("file") as File;
 
     if (!file) {
       return NextResponse.json(
-        { error: 'No file uploaded' },
+        { error: "No file uploaded" },
         { status: 400 }
       );
     }
@@ -52,23 +59,53 @@ export async function POST(request: Request) {
     const fileExtension = getFileExtension(file.name);
     const safeFilename = `${generateUUID()}${fileExtension}`;
 
-    // Instead of saving to local filesystem, we'll return the file data
-    // to be handled by the client for upload to Supabase storage
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    // Convert to Buffer
+    const stream = file.stream();
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    
+    const buffer = Buffer.concat(chunks);
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from("pdfs")
+      .upload(`uploads/${safeFilename}`, buffer, {
+        contentType: "application/pdf",
+        cacheControl: "3600",
+        upsert: false
+      });
+
+    if (error) {
+      console.error("Supabase upload error:", error);
+      return NextResponse.json(
+        { error: "Failed to upload file to storage" },
+        { status: 500 }
+      );
+    }
+
+    // Get public URL for the uploaded file
+    const { data: { publicUrl } } = supabase.storage
+      .from("pdfs")
+      .getPublicUrl(`uploads/${safeFilename}`);
 
     return NextResponse.json({
-      message: 'File processed successfully',
+      message: "Upload successful!",
       filename: safeFilename,
       originalName: file.name,
       size: file.size,
-      data: base64
+      publicUrl
     });
 
   } catch (error) {
-    console.error('Error processing file:', error);
+    console.error("Error processing file:", error);
     return NextResponse.json(
-      { error: 'Error processing file' },
+      { error: "Error processing file" },
       { status: 500 }
     );
   }

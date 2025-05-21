@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { Document } from "@langchain/core/documents";
-import { join } from "path";
-import { unlink } from 'fs/promises';
-import { existsSync } from 'fs';
+import { createClient } from "@supabase/supabase-js";
 
 // Constants
 const MAX_TOKENS = 8000; // GPT-4 context window limit
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 // Check if API key exists
 if (!process.env.OPENAI_API_KEY) {
@@ -20,43 +23,49 @@ const openai = new OpenAI({
 });
 
 export async function POST(request: NextRequest) {
-  let filePath: string | null = null;
-  
   try {
+    console.log('Starting notes generation process...');
     const body = await request.json();
-    const { filename } = body;
+    const { pdfId, fileUrl } = body;
 
-    if (!filename) {
-      return NextResponse.json({ error: "No filename provided" }, { status: 400 });
+    if (!pdfId || !fileUrl) {
+      console.error('Missing parameters:', { pdfId, fileUrl });
+      return NextResponse.json({ error: "Missing required parameters" }, { status: 400 });
     }
 
-    filePath = join(UPLOAD_DIR, filename);
-
-    // Check if file exists
-    if (!existsSync(filePath)) {
-      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    console.log('Fetching PDF from URL:', fileUrl);
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      console.error('Failed to fetch PDF:', response.status, response.statusText);
+      throw new Error('Failed to fetch PDF from storage');
     }
 
-    const loader = new PDFLoader(filePath);
+    console.log('Converting PDF to buffer...');
+    const pdfBuffer = await response.arrayBuffer();
+    const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
+    
+    console.log('Loading PDF content...');
+    const loader = new PDFLoader(pdfBlob);
     const docs = await loader.load();
     const text = docs.map((doc: Document) => doc.pageContent).join("\n\n");
 
-    // Estimate token count (rough estimation)
+    console.log('PDF content loaded, estimating token count...');
     const estimatedTokens = text.length / 4;
     if (estimatedTokens > MAX_TOKENS) {
+      console.error('Token limit exceeded:', estimatedTokens);
       return NextResponse.json(
         { error: "PDF content too large to process. Please use a shorter document." },
         { status: 400 }
       );
     }
 
-    try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [
-          {
-            role: "user",
-            content: `Generate concise, well-structured study notes from the following PDF text. Follow these guidelines:
+    console.log('Generating notes with OpenAI...');
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `You are a professional note-taker and educator. Your task is to create comprehensive, well-structured study notes from PDF content. Follow these guidelines:
 
 1. Format:
    - Use **bold** for main section titles
@@ -93,59 +102,54 @@ export async function POST(request: NextRequest) {
    - Highlight important properties or characteristics of each term
    - Use bullet points to list multiple definitions or properties
 
-Here's the text to analyze:
+6. Visual Organization:
+   - Use clear hierarchical structure
+   - Add spacing between sections for readability
+   - Use consistent formatting throughout
+   - Include section numbers for easy reference
 
-${text}`,
-          },
-        ],
-      });
+7. Additional Elements:
+   - Add "Key Takeaways" at the end of each major section
+   - Include "Important Notes" boxes for critical information
+   - Add "Examples" sections where relevant
+   - Include "Practice Questions" if appropriate
 
-      // Clean up the uploaded file after processing
-      try {
-        await unlink(filePath);
-      } catch (cleanupError) {
-        console.error('Failed to delete file:', cleanupError);
-        // Don't throw error as the main operation succeeded
-      }
-
-      return NextResponse.json({ notes: completion.choices[0].message.content });
-    } catch (gptError: unknown) {
-      // Handle specific OpenAI errors
-      if (gptError instanceof Error) {
-        if (gptError.message.toLowerCase().includes('token')) {
-          return NextResponse.json(
-            { error: "Token limit exceeded. Please use a shorter document." },
-            { status: 400 }
-          );
+Remember to maintain a clear, academic tone while making the content accessible and easy to understand.`
+        },
+        {
+          role: "user",
+          content: `Please generate comprehensive, well-structured study notes from the following PDF content. Follow all the formatting guidelines provided:\n\n${text}`
         }
-        if (gptError.message.toLowerCase().includes('rate')) {
-          return NextResponse.json(
-            { error: "Rate limit exceeded. Please try again later." },
-            { status: 429 }
-          );
-        }
-      }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000
+    });
+
+    const notes = completion.choices[0].message.content;
+    console.log('Notes generated successfully');
+
+    console.log('Updating database with notes...');
+    const { error: updateError } = await supabase
+      .from('pdfs')
+      .update({ notes })
+      .eq('id', pdfId);
+
+    if (updateError) {
+      console.error('Error updating PDF with notes:', updateError);
       return NextResponse.json(
-        { error: "OpenAI request failed", details: gptError instanceof Error ? gptError.message : "Unknown error" },
+        { error: "Failed to save notes" },
         { status: 500 }
       );
     }
+
+    console.log('Notes saved to database successfully');
+    return NextResponse.json({ success: true, notes });
+
   } catch (error) {
+    console.error('Error generating notes:', error);
     return NextResponse.json(
-      {
-        error: "Failed to process PDF",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: error instanceof Error ? error.message : "Failed to generate notes" },
       { status: 500 }
     );
-  } finally {
-    // Ensure file cleanup even if an error occurred
-    if (filePath && existsSync(filePath)) {
-      try {
-        await unlink(filePath);
-      } catch (cleanupError) {
-        console.error('Failed to delete file in cleanup:', cleanupError);
-      }
-    }
   }
 }

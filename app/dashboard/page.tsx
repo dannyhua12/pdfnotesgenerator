@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../providers/AuthProvider';
 import DragDropUpload from '../components/DragDropUpload';
-import { getUserPDFs } from '@/lib/db';
+import { getUserPDFs, deletePDF } from '@/lib/db';
 import type { Database } from '@/types/supabase';
 import Notification from '../components/Notification';
 
@@ -56,6 +56,32 @@ export default function Dashboard() {
       message: 'Notes generated successfully!',
       type: 'success'
     });
+  };
+
+  const handleDeletePDF = async (pdfId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigation when clicking delete
+    if (!user) return;
+
+    if (!window.confirm('Are you sure you want to delete this PDF?')) {
+      return;
+    }
+
+    try {
+      await deletePDF(pdfId, user.id);
+      await loadPDFs();
+      setNotification({
+        show: true,
+        message: 'PDF deleted successfully',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Error deleting PDF:', err);
+      setNotification({
+        show: true,
+        message: 'Failed to delete PDF',
+        type: 'error'
+      });
+    }
   };
 
   // Only show loading state when initially checking auth
@@ -117,13 +143,53 @@ export default function Dashboard() {
               pdfs.map((pdf) => (
                 <div
                   key={pdf.id}
-                  className="p-3 rounded-lg cursor-pointer transition-colors bg-gray-50 hover:bg-gray-100"
+                  className="group p-3 rounded-lg cursor-pointer transition-colors bg-gray-50 hover:bg-gray-100 relative"
                   onClick={() => router.push(`/dashboard/${pdf.id}`)}
                 >
-                  <h3 className="font-medium truncate">{pdf.file_name}</h3>
-                  <p className="text-xs text-gray-500">
-                    {new Date(pdf.created_at).toLocaleDateString()}
-                  </p>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium truncate">{pdf.file_name}</h3>
+                      <p className="text-xs text-gray-500">
+                        {new Date(pdf.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="relative">
+                      <div className="relative">
+                        <button
+                          className="p-1 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const menu = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (menu) {
+                              menu.classList.toggle('hidden');
+                            }
+                          }}
+                        >
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                            />
+                          </svg>
+                        </button>
+                        <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-10 hidden">
+                          <button
+                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                            onClick={(e) => handleDeletePDF(pdf.id, e)}
+                          >
+                            Delete PDF
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))
             )}
