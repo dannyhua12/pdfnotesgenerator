@@ -2,16 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { Document } from "@langchain/core/documents";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase";
 
 // Constants
 const MAX_TOKENS = 8000; // GPT-4 context window limit
-
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // Check if API key exists
 if (!process.env.OPENAI_API_KEY) {
@@ -24,6 +18,13 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      );
+    }
+
     console.log('Starting notes generation process...');
     const body = await request.json();
     const { pdfId, fileUrl } = body;
@@ -129,7 +130,7 @@ Remember to maintain a clear, academic tone while making the content accessible 
     console.log('Notes generated successfully');
 
     console.log('Updating database with notes...');
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('pdfs')
       .update({ notes })
       .eq('id', pdfId);

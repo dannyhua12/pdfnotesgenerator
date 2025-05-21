@@ -1,14 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
 // Constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // Helper function to generate UUID using Web Crypto API
 function generateUUID() {
@@ -31,6 +25,13 @@ function getFileExtension(filename: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: "Server configuration error" },
+        { status: 500 }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
@@ -72,8 +73,8 @@ export async function POST(req: NextRequest) {
     
     const buffer = Buffer.concat(chunks);
 
-    // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    // Upload to Supabase Storage using admin client
+    const { data, error } = await supabaseAdmin.storage
       .from("pdfs")
       .upload(`uploads/${safeFilename}`, buffer, {
         contentType: "application/pdf",
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get public URL for the uploaded file
-    const { data: { publicUrl } } = supabase.storage
+    const { data: { publicUrl } } = supabaseAdmin.storage
       .from("pdfs")
       .getPublicUrl(`uploads/${safeFilename}`);
 
