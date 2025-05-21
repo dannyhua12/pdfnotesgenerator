@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/supabase';
@@ -9,15 +9,25 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import Notification from '@/app/components/Notification';
 
 type PDF = Database['public']['Tables']['pdfs']['Row'];
+type PageParams = { pdfId: string };
 
-export default function PDFNotesPage({ params }: { params: Promise<{ pdfId: string }> }) {
+export default function PDFNotesPage({ params }: { params: Promise<PageParams> }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pdf, setPdf] = useState<PDF | null>(null);
   const [loadingPDF, setLoadingPDF] = useState(true);
-  const resolvedParams = use(params);
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: 'success' as 'success' | 'error'
+  });
+
+  // Unwrap params using React.use()
+  const unwrappedParams = use(params) as PageParams;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -29,17 +39,69 @@ export default function PDFNotesPage({ params }: { params: Promise<{ pdfId: stri
     const fetchPDF = async () => {
       if (!user) return;
       try {
-        const { data, error } = await supabase
+        // First verify the PDF exists
+        const { data: pdfData, error: pdfError } = await supabase
           .from('pdfs')
           .select('*')
-          .eq('id', resolvedParams.pdfId)
-          .eq('user_id', user.id)
+          .eq('id', unwrappedParams.pdfId)
           .single();
 
-        if (error) throw error;
-        setPdf(data);
+        if (pdfError) {
+          console.error('Error fetching PDF:', {
+            error: pdfError,
+            code: pdfError.code,
+            message: pdfError.message,
+            details: pdfError.details
+          });
+          setNotification({
+            show: true,
+            message: 'PDF not found or access denied',
+            type: 'error'
+          });
+          router.push('/dashboard');
+          return;
+        }
+
+        // Then verify ownership
+        if (pdfData.user_id !== user.id) {
+          console.error('Unauthorized access attempt:', {
+            pdfId: unwrappedParams.pdfId,
+            userId: user.id,
+            ownerId: pdfData.user_id
+          });
+          setNotification({
+            show: true,
+            message: 'You do not have permission to view this PDF',
+            type: 'error'
+          });
+          router.push('/dashboard');
+          return;
+        }
+
+        setPdf(pdfData);
+
+        // Show success notification if this is a new upload
+        const isNewUpload = searchParams.get('new') === 'true';
+        if (isNewUpload) {
+          setNotification({
+            show: true,
+            message: 'Notes generated successfully!',
+            type: 'success'
+          });
+        }
       } catch (err) {
-        console.error('Error fetching PDF:', err);
+        console.error('Unexpected error fetching PDF:', {
+          error: err,
+          errorMessage: err instanceof Error ? err.message : 'Unknown error',
+          errorStack: err instanceof Error ? err.stack : undefined,
+          pdfId: unwrappedParams.pdfId,
+          userId: user.id
+        });
+        setNotification({
+          show: true,
+          message: 'An error occurred while loading the PDF',
+          type: 'error'
+        });
         router.push('/dashboard');
       } finally {
         setLoadingPDF(false);
@@ -47,7 +109,7 @@ export default function PDFNotesPage({ params }: { params: Promise<{ pdfId: stri
     };
 
     fetchPDF();
-  }, [resolvedParams.pdfId, user]);
+  }, [unwrappedParams.pdfId, user, searchParams, router]);
 
   if (loading || loadingPDF) {
     return (
@@ -63,6 +125,13 @@ export default function PDFNotesPage({ params }: { params: Promise<{ pdfId: stri
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Notification
+        show={notification.show}
+        message={notification.message}
+        type={notification.type}
+        onClose={() => setNotification(prev => ({ ...prev, show: false }))}
+      />
+
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">

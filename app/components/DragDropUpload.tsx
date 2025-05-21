@@ -3,9 +3,15 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { uploadPDF } from '@/lib/db';
+import { useRouter } from 'next/navigation';
 
-export default function DragDropUpload({ onUploadSuccess }: { onUploadSuccess: () => void }) {
+interface DragDropUploadProps {
+  onUploadSuccess: (pdfId: string) => void;
+}
+
+export default function DragDropUpload({ onUploadSuccess }: DragDropUploadProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,10 +48,12 @@ export default function DragDropUpload({ onUploadSuccess }: { onUploadSuccess: (
     try {
       setStatus('Uploading PDF...');
       for (const file of pdfFiles) {
-        await uploadPDF(file, user.id);
+        const pdfId = await uploadPDF(file, user.id);
+        setStatus('Generating notes...');
+        // Wait for notes generation to complete
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulated delay
+        onUploadSuccess(pdfId);
       }
-      setStatus('Notes generated successfully!');
-      onUploadSuccess();
     } catch (err) {
       console.error('Error uploading:', err);
       setError('Failed to upload PDF');
@@ -72,10 +80,12 @@ export default function DragDropUpload({ onUploadSuccess }: { onUploadSuccess: (
     try {
       setStatus('Uploading PDF...');
       for (const file of pdfFiles) {
-        await uploadPDF(file, user.id);
+        const pdfId = await uploadPDF(file, user.id);
+        setStatus('Generating notes...');
+        // Wait for notes generation to complete
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulated delay
+        onUploadSuccess(pdfId);
       }
-      setStatus('Notes generated successfully!');
-      onUploadSuccess();
       e.target.value = ''; // Reset input
     } catch (err) {
       console.error('Error uploading:', err);

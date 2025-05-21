@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import type { Database } from '@/types/supabase';
 
-export async function uploadPDF(file: File, userId: string) {
+export async function uploadPDF(file: File, userId: string): Promise<string> {
   try {
     // Validate file
     if (!file.type.includes('pdf')) {
@@ -45,7 +45,7 @@ export async function uploadPDF(file: File, userId: string) {
     const storageFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `${userId}/${storageFileName}`;
 
-    const { error: uploadError, data: uploadData } = await supabase.storage
+    const { data: fileData, error: uploadError } = await supabase.storage
       .from('pdfs')
       .upload(filePath, file, {
         cacheControl: '3600',
@@ -57,7 +57,7 @@ export async function uploadPDF(file: File, userId: string) {
       throw new Error('Failed to upload file to storage');
     }
 
-    if (!uploadData) {
+    if (!fileData) {
       throw new Error('No upload data returned');
     }
 
@@ -71,7 +71,7 @@ export async function uploadPDF(file: File, userId: string) {
     }
 
     // 5. Create database entry with notes
-    const { data, error: dbError } = await supabase
+    const { data: pdfData, error: insertError } = await supabase
       .from('pdfs')
       .insert({
         user_id: userId,
@@ -83,27 +83,27 @@ export async function uploadPDF(file: File, userId: string) {
       .select()
       .single();
 
-    if (dbError) {
+    if (insertError) {
       // If database insert fails, try to clean up the uploaded file
       await supabase.storage
         .from('pdfs')
         .remove([filePath]);
       
-      console.error('Database insert error:', dbError);
+      console.error('Database insert error:', insertError);
       console.error('Database error details:', {
-        message: dbError.message,
-        details: dbError.details,
-        hint: dbError.hint,
-        code: dbError.code
+        message: insertError.message,
+        details: insertError.details,
+        hint: insertError.hint,
+        code: insertError.code
       });
-      throw new Error(`Failed to create database entry: ${dbError.message}`);
+      throw new Error(`Failed to create database entry: ${insertError.message}`);
     }
 
-    if (!data) {
+    if (!pdfData) {
       throw new Error('No data returned from database insert');
     }
 
-    return data;
+    return pdfData.id;
   } catch (error) {
     console.error('Error in uploadPDF:', error);
     throw error instanceof Error ? error : new Error('An unknown error occurred');

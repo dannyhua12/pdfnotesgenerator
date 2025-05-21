@@ -1,13 +1,26 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir, unlink } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
-import { randomUUID } from 'crypto';
-import path from 'path';
 
 // Constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
+
+// Helper function to generate UUID using Web Crypto API
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// Helper function to get file extension
+function getFileExtension(filename: string): string {
+  const parts = filename.split('.');
+  return parts.length > 1 ? `.${parts[parts.length - 1].toLowerCase()}` : '';
+}
 
 export async function POST(request: Request) {
   try {
@@ -35,38 +48,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Create uploads directory if it doesn't exist
-    if (!existsSync(UPLOAD_DIR)) {
-      await mkdir(UPLOAD_DIR, { recursive: true });
-    }
-
     // Generate safe filename
-    const fileExtension = path.extname(file.name).toLowerCase();
-    const safeFilename = `${randomUUID()}${fileExtension}`;
-    const filePath = join(UPLOAD_DIR, safeFilename);
-    
-    try {
-      await writeFile(filePath, buffer);
+    const fileExtension = getFileExtension(file.name);
+    const safeFilename = `${generateUUID()}${fileExtension}`;
 
-      return NextResponse.json({
-        message: 'File uploaded successfully',
-        filename: safeFilename, // Return the safe filename instead of original
-        originalName: file.name,
-        size: file.size
-      });
-    } catch {
-      return NextResponse.json(
-        { error: 'Error saving file' },
-        { status: 500 }
-      );
-    }
+    // Instead of saving to local filesystem, we'll return the file data
+    // to be handled by the client for upload to Supabase storage
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
 
-  } catch {
+    return NextResponse.json({
+      message: 'File processed successfully',
+      filename: safeFilename,
+      originalName: file.name,
+      size: file.size,
+      data: base64
+    });
+
+  } catch (error) {
+    console.error('Error processing file:', error);
     return NextResponse.json(
-      { error: 'Error uploading file' },
+      { error: 'Error processing file' },
       { status: 500 }
     );
   }

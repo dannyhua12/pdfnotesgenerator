@@ -4,23 +4,24 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../providers/AuthProvider';
 import DragDropUpload from '../components/DragDropUpload';
-import { supabase } from '@/lib/supabase';
 import { getUserPDFs } from '@/lib/db';
 import type { Database } from '@/types/supabase';
-import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
+import Notification from '../components/Notification';
 
 type PDF = Database['public']['Tables']['pdfs']['Row'];
 
 export default function Dashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pdfs, setPdfs] = useState<PDF[]>([]);
   const [loadingPDFs, setLoadingPDFs] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: 'success' as 'success' | 'error'
+  });
 
   useEffect(() => {
     if (!loading && !user) {
@@ -46,12 +47,19 @@ export default function Dashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
+  const handleUploadSuccess = (pdfId: string) => {
+    loadPDFs();
+    setShowUploadModal(false);
+    router.push(`/dashboard/${pdfId}`);
+    setNotification({
+      show: true,
+      message: 'Notes generated successfully!',
+      type: 'success'
+    });
   };
 
-  if (loading) {
+  // Only show loading state when initially checking auth
+  if (loading && !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-2xl">Loading...</div>
@@ -65,6 +73,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Notification
+        show={notification.show}
+        message={notification.message}
+        type={notification.type}
+        onClose={() => setNotification(prev => ({ ...prev, show: false }))}
+      />
+
       {/* Sidebar */}
       <div
         className={`fixed inset-y-0 left-0 w-64 bg-white shadow-lg transform ${
@@ -143,7 +158,7 @@ export default function Dashboard() {
               <h1 className="text-2xl font-bold text-gray-900">PDF Notes Generator</h1>
             </div>
             <button
-              onClick={handleLogout}
+              onClick={signOut}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
               Log Out
@@ -155,15 +170,15 @@ export default function Dashboard() {
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8">
             <h2 className="text-2xl font-bold mb-4">Upload PDF</h2>
-            <DragDropUpload onUploadSuccess={loadPDFs} />
+            <DragDropUpload onUploadSuccess={handleUploadSuccess} />
           </div>
         </main>
       </div>
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-30">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-30">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Upload New PDF</h2>
               <button
@@ -185,12 +200,7 @@ export default function Dashboard() {
                 </svg>
               </button>
             </div>
-            <DragDropUpload
-              onUploadSuccess={() => {
-                loadPDFs();
-                setShowUploadModal(false);
-              }}
-            />
+            <DragDropUpload onUploadSuccess={handleUploadSuccess} />
           </div>
         </div>
       )}
