@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { Document } from "@langchain/core/documents";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 // Constants
 const MAX_TOKENS = 8000; // GPT-4 context window limit
@@ -18,13 +18,6 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
     console.log('Starting notes generation process...');
     const body = await request.json();
     const { pdfId, fileUrl } = body;
@@ -62,60 +55,11 @@ export async function POST(request: NextRequest) {
 
     console.log('Generating notes with OpenAI...');
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: `You are a professional note-taker and educator. Your task is to create comprehensive, well-structured study notes from PDF content. Follow these guidelines:
-
-1. Format:
-   - Use **bold** for main section titles
-   - Use *italic* for subsection titles
-   - Use bullet points (•) for all content
-   - Add line breaks between major sections
-   - Keep each point brief and clear
-
-2. Structure:
-   - Start with main topic in bold
-   - Break down into logical subsections
-   - Use nested bullet points for related concepts
-   - Include examples as separate bullet points
-   - End each major section with a brief summary
-
-3. Content:
-   - Focus on key concepts and definitions
-   - Include important formulas and theorems
-   - Add practical examples where relevant
-   - Highlight critical points with sub-bullets
-
-4. Math Formatting:
-   - Use LaTeX for all mathematical expressions
-   - Inline math should be wrapped in single $ signs (e.g., $x^2 + y^2 = z^2$)
-   - Display math should be wrapped in double $ signs (e.g., $$\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$)
-   - Use proper LaTeX notation for all mathematical symbols
-   - Format equations and formulas clearly with proper spacing
-
-5. Key Terms and Definitions:
-   - Identify and **bold** all key terms and their definitions
-   - Format definitions as: "**Term**: Definition"
-   - Group related terms together
-   - Include examples after each definition where relevant
-   - Highlight important properties or characteristics of each term
-   - Use bullet points to list multiple definitions or properties
-
-6. Visual Organization:
-   - Use clear hierarchical structure
-   - Add spacing between sections for readability
-   - Use consistent formatting throughout
-   - Include section numbers for easy reference
-
-7. Additional Elements:
-   - Add "Key Takeaways" at the end of each major section
-   - Include "Important Notes" boxes for critical information
-   - Add "Examples" sections where relevant
-   - Include "Practice Questions" if appropriate
-
-Remember to maintain a clear, academic tone while making the content accessible and easy to understand.`
+          content: `You are a helpful assistant that generates detailed, well-formatted study notes from PDF content.\n\nFormatting Guidelines:\n\n1. Use clear section headings (##)\n2. Use bullet points, numbered lists, and tables where appropriate\n3. Render all math using LaTeX (in $$...$$ or \( ... \))\n4. Highlight key terms in bold\n5. Add a summary at the end of each section\n6. Use markdown for all formatting.\n\nIf the PDF contains math, use proper LaTeX notation for all equations.`
         },
         {
           role: "user",
@@ -130,7 +74,7 @@ Remember to maintain a clear, academic tone while making the content accessible 
     console.log('Notes generated successfully');
 
     console.log('Updating database with notes...');
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabase
       .from('pdfs')
       .update({ notes })
       .eq('id', pdfId);
@@ -145,11 +89,10 @@ Remember to maintain a clear, academic tone while making the content accessible 
 
     console.log('Notes saved to database successfully');
     return NextResponse.json({ success: true, notes });
-
   } catch (error) {
-    console.error('Error generating notes:', error);
+    console.error('Error in generate-notes route:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate notes" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

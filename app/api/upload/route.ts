@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
 // Constants
@@ -19,19 +19,12 @@ function generateUUID() {
 
 // Helper function to get file extension
 function getFileExtension(filename: string): string {
-  const parts = filename.split('.');
-  return parts.length > 1 ? `.${parts[parts.length - 1].toLowerCase()}` : '';
+  const dotIndex = filename.lastIndexOf('.');
+  return dotIndex !== -1 ? filename.substring(dotIndex) : '';
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
-    }
-
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
@@ -73,8 +66,8 @@ export async function POST(req: NextRequest) {
     
     const buffer = Buffer.concat(chunks);
 
-    // Upload to Supabase Storage using admin client
-    const { data, error } = await supabaseAdmin.storage
+    // Upload to Supabase Storage using public client
+    const { data, error } = await supabase.storage
       .from("pdfs")
       .upload(`uploads/${safeFilename}`, buffer, {
         contentType: "application/pdf",
@@ -91,22 +84,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Get public URL for the uploaded file
-    const { data: { publicUrl } } = supabaseAdmin.storage
+    const { data: { publicUrl } } = supabase.storage
       .from("pdfs")
       .getPublicUrl(`uploads/${safeFilename}`);
 
-    return NextResponse.json({
-      message: "Upload successful!",
-      filename: safeFilename,
-      originalName: file.name,
-      size: file.size,
-      publicUrl
-    });
-
+    return NextResponse.json({ success: true, publicUrl });
   } catch (error) {
-    console.error("Error processing file:", error);
+    console.error("Error in upload route:", error);
     return NextResponse.json(
-      { error: "Error processing file" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
