@@ -65,7 +65,7 @@ export default function DashboardLayout({
     };
 
     loadPDFs();
-  }, [user]);
+  }, [user, supabase]);
 
   return (
     <div className="min-h-screen bg-gray-100">

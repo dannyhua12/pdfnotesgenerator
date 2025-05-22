@@ -3,9 +3,11 @@ import OpenAI from "openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { Document } from "@langchain/core/documents";
 import { supabase } from "@/lib/supabase";
+import { createClient } from '@supabase/supabase-js';
 
 // Constants
 const MAX_TOKENS = 8000; // GPT-4 context window limit
+const MAX_REQUESTS_PER_HOUR = 10; // Rate limiting
 
 // Check if API key exists
 if (!process.env.OPENAI_API_KEY) {
@@ -16,8 +18,99 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY.trim()
 });
 
+// Helper function to verify user authentication
+async function verifyAuth(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+
+  const token = authHeader.split(' ')[1];
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    return null;
+  }
+
+  return user;
+}
+
+// Helper function to check rate limiting
+async function checkRateLimit(userId: string) {
+  const { data: requests, error } = await supabase
+    .from('rate_limits')
+    .select('count, last_request')
+    .eq('user_id', userId)
+    .eq('endpoint', 'generate-notes')
+    .single();
+
+  if (error) {
+    // If no record exists, create one
+    await supabase
+      .from('rate_limits')
+      .insert({
+        user_id: userId,
+        endpoint: 'generate-notes',
+        count: 1,
+        last_request: new Date().toISOString()
+      });
+    return true;
+  }
+
+  const lastRequest = new Date(requests.last_request);
+  const now = new Date();
+  const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+  if (lastRequest < hourAgo) {
+    // Reset count if last request was more than an hour ago
+    await supabase
+      .from('rate_limits')
+      .update({
+        count: 1,
+        last_request: now.toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('endpoint', 'generate-notes');
+    return true;
+  }
+
+  if (requests.count >= MAX_REQUESTS_PER_HOUR) {
+    return false;
+  }
+
+  // Increment count
+  await supabase
+    .from('rate_limits')
+    .update({
+      count: requests.count + 1,
+      last_request: now.toISOString()
+    })
+    .eq('user_id', userId)
+    .eq('endpoint', 'generate-notes');
+
+  return true;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // Verify authentication
+    const user = await verifyAuth(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Check rate limiting
+    const isAllowed = await checkRateLimit(user.id);
+    if (!isAllowed) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     console.log('Starting notes generation process...');
     const body = await request.json();
     const { pdfId, fileUrl } = body;
@@ -25,6 +118,21 @@ export async function POST(request: NextRequest) {
     if (!pdfId || !fileUrl) {
       console.error('Missing parameters:', { pdfId, fileUrl });
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 });
+    }
+
+    // Verify PDF ownership
+    const { data: pdf, error: pdfError } = await supabase
+      .from('pdfs')
+      .select('*')
+      .eq('id', pdfId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (pdfError || !pdf) {
+      return NextResponse.json(
+        { error: "PDF not found or unauthorized" },
+        { status: 403 }
+      );
     }
 
     console.log('Fetching PDF from URL:', fileUrl);
@@ -55,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Generating notes with OpenAI...');
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4",
       messages: [
         {
           role: "system",
@@ -77,7 +185,8 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from('pdfs')
       .update({ notes })
-      .eq('id', pdfId);
+      .eq('id', pdfId)
+      .eq('user_id', user.id); // Ensure user can only update their own PDFs
 
     if (updateError) {
       console.error('Error updating PDF with notes:', updateError);
