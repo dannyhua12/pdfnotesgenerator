@@ -6,6 +6,7 @@ import { useAuth } from '../providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/supabase';
 import LogoutConfirmationModal from './LogoutConfirmationModal';
+import { deletePDF } from '@/lib/db';
 
 type PDF = Database['public']['Tables']['pdfs']['Row'];
 
@@ -30,6 +31,11 @@ export default function DashboardLayout({
   const [pdfs, setPdfs] = useState<PDF[]>([]);
   const [loadingPDFs, setLoadingPDFs] = useState(true);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: 'success' as 'success' | 'error'
+  });
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,27 +51,53 @@ export default function DashboardLayout({
     };
   }, [sidebarOpen]);
 
+  const loadPDFs = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('pdfs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setPdfs(data || []);
+    } catch (err) {
+      console.error('Error loading PDFs:', err);
+    } finally {
+      setLoadingPDFs(false);
+    }
+  };
+
   useEffect(() => {
-    const loadPDFs = async () => {
-      if (!user) return;
-      try {
-        const { data, error } = await supabase
-          .from('pdfs')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        setPdfs(data || []);
-      } catch (err) {
-        console.error('Error loading PDFs:', err);
-      } finally {
-        setLoadingPDFs(false);
-      }
-    };
-
     loadPDFs();
-  }, [user, supabase]);
+  }, [user]);
+
+  const handleDeletePDF = async (pdfId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigation when clicking delete
+    if (!user) return;
+
+    if (!window.confirm('Are you sure you want to delete this PDF?')) {
+      return;
+    }
+
+    try {
+      await deletePDF(pdfId, user.id);
+      await loadPDFs();
+      setNotification({
+        show: true,
+        message: 'PDF deleted successfully',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Error deleting PDF:', err);
+      setNotification({
+        show: true,
+        message: 'Failed to delete PDF',
+        type: 'error'
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -99,6 +131,24 @@ export default function DashboardLayout({
                         {new Date(pdf.created_at).toLocaleDateString()}
                       </p>
                     </div>
+                    <button
+                      onClick={(e) => handleDeletePDF(pdf.id, e)}
+                      className="p-1 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               ))
@@ -176,6 +226,15 @@ export default function DashboardLayout({
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
       />
+
+      {/* Notification */}
+      {notification.show && (
+        <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded-lg p-4 z-50">
+          <div className={`text-sm ${notification.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+            {notification.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
