@@ -4,23 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 // Constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-// Helper function to verify user authentication
-async function verifyAuth(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.split(' ')[1];
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
-    return null;
-  }
-
-  return user;
-}
-
 // Helper function to generate UUID using Web Crypto API
 function generateUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -42,15 +25,6 @@ function getFileExtension(filename: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify authentication
-    const user = await verifyAuth(req);
-    if (!user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
@@ -114,31 +88,7 @@ export async function POST(req: NextRequest) {
       .from("pdfs")
       .getPublicUrl(`uploads/${safeFilename}`);
 
-    // Create a record in the pdfs table
-    const { data: pdfData, error: pdfError } = await supabase
-      .from('pdfs')
-      .insert({
-        user_id: user.id,
-        file_name: file.name,
-        file_url: publicUrl,
-        file_path: `uploads/${safeFilename}`
-      })
-      .select()
-      .single();
-
-    if (pdfError) {
-      console.error("Error creating PDF record:", pdfError);
-      return NextResponse.json(
-        { error: "Failed to create PDF record" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      publicUrl,
-      pdfId: pdfData.id 
-    });
+    return NextResponse.json({ success: true, publicUrl });
   } catch (error) {
     console.error("Error in upload route:", error);
     return NextResponse.json(

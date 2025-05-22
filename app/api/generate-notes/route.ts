@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase";
 
 // Constants
 const MAX_TOKENS = 8000; // GPT-4 context window limit
-const MAX_REQUESTS_PER_HOUR = 10; // Rate limiting
 
 // Check if API key exists
 if (!process.env.OPENAI_API_KEY) {
@@ -56,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Generating notes with OpenAI...');
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",
@@ -93,7 +92,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in generate-notes route:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

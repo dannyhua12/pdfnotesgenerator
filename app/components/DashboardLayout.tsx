@@ -6,7 +6,6 @@ import { useAuth } from '../providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/supabase';
 import LogoutConfirmationModal from './LogoutConfirmationModal';
-import { deletePDF } from '@/lib/db';
 
 type PDF = Database['public']['Tables']['pdfs']['Row'];
 
@@ -31,11 +30,8 @@ export default function DashboardLayout({
   const [pdfs, setPdfs] = useState<PDF[]>([]);
   const [loadingPDFs, setLoadingPDFs] = useState(true);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [notification, setNotification] = useState({
-    show: false,
-    message: '',
-    type: 'success' as 'success' | 'error'
-  });
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [pdfToDelete, setPdfToDelete] = useState<PDF | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,29 +69,38 @@ export default function DashboardLayout({
     loadPDFs();
   }, [user]);
 
-  const handleDeletePDF = async (pdfId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent navigation when clicking delete
-    if (!user) return;
+  const handleDeleteClick = (pdf: PDF, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setPdfToDelete(pdf);
+    setIsDeleteModalOpen(true);
+  };
 
-    if (!window.confirm('Are you sure you want to delete this PDF?')) {
-      return;
-    }
+  const handleDeleteConfirm = async () => {
+    if (!pdfToDelete) return;
 
     try {
-      await deletePDF(pdfId, user.id);
-      await loadPDFs();
-      setNotification({
-        show: true,
-        message: 'PDF deleted successfully',
-        type: 'success'
-      });
-    } catch (err) {
-      console.error('Error deleting PDF:', err);
-      setNotification({
-        show: true,
-        message: 'Failed to delete PDF',
-        type: 'error'
-      });
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('pdfs')
+        .remove([`uploads/${pdfToDelete.file_name}`]);
+
+      if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('pdfs')
+        .delete()
+        .eq('id', pdfToDelete.id);
+
+      if (dbError) throw dbError;
+
+      // Update local state
+      setPdfs(pdfs.filter(pdf => pdf.id !== pdfToDelete.id));
+    } catch (error) {
+      console.error('Error deleting PDF:', error);
+    } finally {
+      setIsDeleteModalOpen(false);
+      setPdfToDelete(null);
     }
   };
 
@@ -132,11 +137,11 @@ export default function DashboardLayout({
                       </p>
                     </div>
                     <button
-                      onClick={(e) => handleDeletePDF(pdf.id, e)}
-                      className="p-1 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                      onClick={(e) => handleDeleteClick(pdf, e)}
+                      className="p-1 hover:bg-gray-200 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <svg
-                        className="w-5 h-5"
+                        className="w-5 h-5 text-gray-500"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -145,7 +150,7 @@ export default function DashboardLayout({
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
                         />
                       </svg>
                     </button>
@@ -227,11 +232,31 @@ export default function DashboardLayout({
         onClose={() => setIsLogoutModalOpen(false)}
       />
 
-      {/* Notification */}
-      {notification.show && (
-        <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded-lg p-4 z-50">
-          <div className={`text-sm ${notification.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-            {notification.message}
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && pdfToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Delete PDF</h3>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete "{pdfToDelete.file_name}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setPdfToDelete(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
