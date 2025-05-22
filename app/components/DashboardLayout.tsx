@@ -56,14 +56,41 @@ export default function DashboardLayout({
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error loading PDFs:', {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        
+        // Handle unauthorized error
+        if (error.message === 'Unauthorized - No valid session') {
+          router.push('/');
+          return;
+        }
+        
+        throw error;
+      }
       setPdfs(data || []);
     } catch (err) {
-      console.error('Error loading PDFs:', err);
+      console.error('Error loading PDFs:', {
+        error: err,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        errorStack: err instanceof Error ? err.stack : undefined,
+        userId: user.id
+      });
+      
+      // Handle unauthorized error in catch block as well
+      if (err instanceof Error && err.message.includes('Unauthorized')) {
+        router.push('/');
+        return;
+      }
     } finally {
       setLoadingPDFs(false);
     }
-  }, [user]);
+  }, [user, router]);
 
   useEffect(() => {
     loadPDFs();
@@ -117,7 +144,7 @@ export default function DashboardLayout({
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold">Your PDFs</h2>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
             {loadingPDFs ? (
               <p className="text-gray-500">Loading...</p>
             ) : pdfs.length === 0 ? (

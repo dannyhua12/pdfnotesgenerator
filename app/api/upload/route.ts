@@ -1,8 +1,14 @@
-import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 // Constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_FILE_TYPES = ['application/pdf'];
+const MAX_REQUESTS_PER_MINUTE = 10;
+
+// Rate limiting map
+const rateLimit = new Map<string, { count: number; timestamp: number }>();
 
 // Helper function to generate UUID using Web Crypto API
 function generateUUID() {
@@ -23,8 +29,67 @@ function getFileExtension(filename: string): string {
   return dotIndex !== -1 ? filename.substring(dotIndex) : '';
 }
 
+// Rate limiting middleware
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const userLimit = rateLimit.get(userId);
+
+  if (!userLimit) {
+    rateLimit.set(userId, { count: 1, timestamp: now });
+    return true;
+  }
+
+  if (now - userLimit.timestamp > 60000) {
+    rateLimit.set(userId, { count: 1, timestamp: now });
+    return true;
+  }
+
+  if (userLimit.count >= MAX_REQUESTS_PER_MINUTE) {
+    return false;
+  }
+
+  userLimit.count++;
+  return true;
+}
+
 export async function POST(req: NextRequest) {
   try {
+    // Get authenticated user
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get: (name) => cookieStore.get(name)?.value,
+          set: (name, value, options) => {
+            cookieStore.set({ name, value, ...options });
+          },
+          remove: (name, options) => {
+            cookieStore.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      console.error('No session found in upload route');
+      return NextResponse.json(
+        { error: "Unauthorized - No valid session" },
+        { status: 401 }
+      );
+    }
+
+    // Check rate limit
+    if (!checkRateLimit(session.user.id)) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
@@ -35,13 +100,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (file.type !== 'application/pdf') {
+    // Validate file type
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: 'File must be a PDF' },
+        { error: 'Invalid file type. Only PDF files are allowed.' },
         { status: 400 }
       );
     }
 
+    // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         { error: 'File size too large. Maximum size is 10MB' },
@@ -66,7 +133,7 @@ export async function POST(req: NextRequest) {
     
     const buffer = Buffer.concat(chunks);
 
-    // Upload to Supabase Storage using public client
+    // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from("pdfs")
       .upload(`uploads/${safeFilename}`, buffer, {
@@ -79,6 +146,29 @@ export async function POST(req: NextRequest) {
       console.error("Supabase upload error:", error);
       return NextResponse.json(
         { error: "Failed to upload file to storage" },
+        { status: 500 }
+      );
+    }
+
+    // Create database record
+    const { error: dbError } = await supabase
+      .from('pdfs')
+      .insert({
+        file_name: file.name,
+        storage_path: `uploads/${safeFilename}`,
+        user_id: session.user.id,
+        file_size: file.size,
+        mime_type: file.type
+      });
+
+    if (dbError) {
+      // If database insert fails, delete the uploaded file
+      await supabase.storage
+        .from("pdfs")
+        .remove([`uploads/${safeFilename}`]);
+      
+      return NextResponse.json(
+        { error: "Failed to save file information" },
         { status: 500 }
       );
     }

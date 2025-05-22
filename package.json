@@ -12,7 +12,8 @@
   "dependencies": {
     "@langchain/community": "^0.3.43",
     "@prisma/client": "^6.8.2",
-    "@supabase/supabase-js": "^2.49.7",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "katex": "^0.16.22",

@@ -30,11 +30,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           throw error;
         }
-        setUser(session?.user ?? null);
+        
+        if (session) {
+          setUser(session.user);
+          
+          // Set up session refresh
+          const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+              if (event === 'TOKEN_REFRESHED') {
+                console.log('Token refreshed successfully');
+              }
+              setUser(session?.user ?? null);
+            }
+          );
+          
+          return () => {
+            subscription.unsubscribe();
+          };
+        } else {
+          setUser(null);
+        }
       } catch (error) {
         console.error('Error checking auth session:', error);
-        // Handle session error by clearing the session
-        await handleSignOut();
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -48,13 +66,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         setLoading(false);
 
-        if (event === 'TOKEN_REFRESHED') {
-          console.log('Token has been refreshed.');
-        }
-
         if (event === 'SIGNED_OUT') {
           setUser(null);
-          window.location.href = '/';
+          router.push('/');
         }
       }
     );
@@ -62,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const handleSignOut = async () => {
     try {
@@ -70,9 +84,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       
       setUser(null);
-      window.location.href = '/';
+      router.push('/');
     } catch (error) {
       console.error('Error signing out:', error);
+    } finally {
       setLoading(false);
     }
   };

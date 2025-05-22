@@ -80,6 +80,7 @@ export async function uploadPDF(file: File, userId: string): Promise<string> {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ 
           pdfId: pdfData.id,
           fileUrl: publicUrl

@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { Document } from "@langchain/core/documents";
-import { supabase } from "@/lib/supabase";
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 // Constants
 const MAX_TOKENS = 8000; // GPT-4 context window limit
+const MAX_REQUESTS_PER_HOUR = 20;
+
+// Rate limiting map
+const rateLimit = new Map<string, { count: number; timestamp: number }>();
 
 // Check if API key exists
 if (!process.env.OPENAI_API_KEY) {
@@ -16,8 +21,67 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY.trim()
 });
 
+// Rate limiting middleware
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const userLimit = rateLimit.get(userId);
+
+  if (!userLimit) {
+    rateLimit.set(userId, { count: 1, timestamp: now });
+    return true;
+  }
+
+  if (now - userLimit.timestamp > 3600000) { // 1 hour
+    rateLimit.set(userId, { count: 1, timestamp: now });
+    return true;
+  }
+
+  if (userLimit.count >= MAX_REQUESTS_PER_HOUR) {
+    return false;
+  }
+
+  userLimit.count++;
+  return true;
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // Get authenticated user
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get: (name) => cookieStore.get(name)?.value,
+          set: (name, value, options) => {
+            cookieStore.set({ name, value, ...options });
+          },
+          remove: (name, options) => {
+            cookieStore.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      console.error('No session found in generate-notes route');
+      return NextResponse.json(
+        { error: "Unauthorized - No valid session" },
+        { status: 401 }
+      );
+    }
+
+    // Check rate limit
+    if (!checkRateLimit(session.user.id)) {
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     console.log('Starting notes generation process...');
     const body = await request.json();
     const { pdfId, fileUrl } = body;
@@ -25,6 +89,30 @@ export async function POST(request: NextRequest) {
     if (!pdfId || !fileUrl) {
       console.error('Missing parameters:', { pdfId, fileUrl });
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 });
+    }
+
+    // Verify PDF ownership
+    const { data: pdf, error: pdfError } = await supabase
+      .from('pdfs')
+      .select('*')
+      .eq('id', pdfId)
+      .eq('user_id', session.user.id)
+      .single();
+
+    if (pdfError || !pdf) {
+      console.error('PDF ownership verification failed:', pdfError);
+      return NextResponse.json(
+        { error: "PDF not found or unauthorized" },
+        { status: 404 }
+      );
+    }
+
+    // Validate file URL
+    if (!fileUrl.startsWith(process.env.NEXT_PUBLIC_SUPABASE_URL)) {
+      return NextResponse.json(
+        { error: "Invalid file URL" },
+        { status: 400 }
+      );
     }
 
     console.log('Fetching PDF from URL:', fileUrl);
@@ -55,15 +143,41 @@ export async function POST(request: NextRequest) {
 
     console.log('Generating notes with OpenAI...');
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4",
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant that generates detailed, well-formatted study notes from PDF content.\n\nFormatting Guidelines:\n\n1. Use clear section headings (##)\n2. Use bullet points, numbered lists, and tables where appropriate\n3. Render all math using LaTeX (in $$...$$ or \( ... \))\n4. Highlight key terms in bold\n5. Add a summary at the end of each section\n6. Use markdown for all formatting.\n\nIf the PDF contains math, use proper LaTeX notation for all equations.`
+          content: `You are an expert note-taker and educator that creates comprehensive, well-structured study notes from PDF content. Your goal is to help students understand and retain the material effectively.
+
+Formatting Guidelines:
+1. Start with a clear title and brief overview of the document
+2. Use hierarchical headings (## for main sections, ### for subsections)
+3. For each section:
+   - Begin with key concepts and definitions
+   - Use bullet points for important details
+   - Include relevant examples where appropriate
+   - Add a brief summary at the end
+4. Format all mathematical content using LaTeX (in $$...$$ or \( ... \))
+5. Use tables for comparing concepts or presenting structured data
+6. Highlight key terms in **bold**
+7. Use numbered lists for sequential steps or processes
+8. Include diagrams or visual descriptions where relevant
+9. Add a comprehensive summary at the end
+10. Use markdown for all formatting
+
+Additional Guidelines:
+- Break down complex concepts into digestible parts
+- Include real-world applications where relevant
+- Add memory aids or mnemonics for important concepts
+- Cross-reference related concepts within the notes
+- Include practice questions or key points to remember
+- Maintain a consistent and professional tone
+- Ensure all mathematical equations are properly formatted in LaTeX
+- Use clear transitions between sections`
         },
         {
           role: "user",
-          content: `Please generate comprehensive, well-structured study notes from the following PDF content. Follow all the formatting guidelines provided:\n\n${text}`
+          content: `Please generate comprehensive, well-structured study notes from the following PDF content. Follow all the formatting guidelines provided and ensure the notes are detailed, informative, and easy to understand:\n\n${text}`
         }
       ],
       temperature: 0.7,
@@ -77,7 +191,8 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from('pdfs')
       .update({ notes })
-      .eq('id', pdfId);
+      .eq('id', pdfId)
+      .eq('user_id', session.user.id); // Ensure user owns the PDF
 
     if (updateError) {
       console.error('Error updating PDF with notes:', updateError);
