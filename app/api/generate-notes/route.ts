@@ -214,7 +214,13 @@ export async function POST(request: NextRequest) {
         max_tokens: 1000
       });
 
-      let notes = completion.choices[0].message.content;
+      const content = completion.choices[0].message.content;
+      if (!content) {
+        console.error('No content generated for chunk', index);
+        return `Error: No content generated for section ${index + 1}`;
+      }
+
+      let notes = content;
       // Restore LaTeX if it was present
       if (hasLatex) {
         notes = restoreLatex(notes);

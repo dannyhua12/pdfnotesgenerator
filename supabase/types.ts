@@ -47,35 +47,15 @@ export interface Database {
           notes_generation_progress?: number
         }
       }
-      submissions: {
-        Row: {
-          id: string
-          created_at: string
-          pdf_id: string
-          user_id: string
-          status: 'pending' | 'completed' | 'failed'
-          notes: string | null
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          created_at?: string
-          pdf_id: string
-          user_id: string
-          status: 'pending' | 'completed' | 'failed'
-          notes?: string | null
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          created_at?: string
-          pdf_id?: string
-          user_id?: string
-          status?: 'pending' | 'completed' | 'failed'
-          notes?: string | null
-          updated_at?: string
-        }
-      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      notes_generation_status_type: 'pending' | 'in_progress' | 'completed' | 'failed'
     }
   }
 } 
