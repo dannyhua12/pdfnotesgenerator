@@ -26,6 +26,7 @@ export default function PDFNotesPage({ params }: { params: Promise<PageParams> }
     message: '',
     type: 'success' as 'success' | 'error'
   });
+  const [generationProgress, setGenerationProgress] = useState(0);
 
   // Unwrap params using React.use()
   const unwrappedParams = use(params) as PageParams;
@@ -112,6 +113,29 @@ export default function PDFNotesPage({ params }: { params: Promise<PageParams> }
     fetchPDF();
   }, [unwrappedParams.pdfId, user, searchParams, router]);
 
+  useEffect(() => {
+    if (pdf?.notes_generation_status === 'in_progress') {
+      const checkProgress = async () => {
+        const { data } = await supabase
+          .from('pdfs')
+          .select('notes_generation_progress, notes_generation_status')
+          .eq('id', pdf.id)
+          .single();
+        
+        if (data) {
+          setGenerationProgress(data.notes_generation_progress);
+          if (data.notes_generation_status === 'completed') {
+            // Refresh the page to show the notes
+            window.location.reload();
+          }
+        }
+      };
+
+      const interval = setInterval(checkProgress, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [pdf]);
+
   if (loading || loadingPDF) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -186,6 +210,19 @@ export default function PDFNotesPage({ params }: { params: Promise<PageParams> }
             <p className="text-gray-500">No notes generated yet</p>
           )}
         </div>
+        {pdf.notes_generation_status === 'in_progress' && (
+          <div className="mb-4">
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div 
+                className="bg-blue-600 h-2.5 rounded-full" 
+                style={{ width: `${generationProgress}%` }}
+              ></div>
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              Generating notes... {generationProgress}%
+            </p>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
