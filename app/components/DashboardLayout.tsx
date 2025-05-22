@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
@@ -47,7 +47,7 @@ export default function DashboardLayout({
     };
   }, [sidebarOpen]);
 
-  const loadPDFs = async () => {
+  const loadPDFs = useCallback(async () => {
     if (!user) return;
     try {
       const { data, error } = await supabase
@@ -63,11 +63,11 @@ export default function DashboardLayout({
     } finally {
       setLoadingPDFs(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     loadPDFs();
-  }, [user]);
+  }, [user, loadPDFs]);
 
   const handleDeleteClick = (pdf: PDF, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -238,7 +238,7 @@ export default function DashboardLayout({
           <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">Delete PDF</h3>
             <p className="text-gray-600 mb-6">
-              Are you sure you want to delete "{pdfToDelete.file_name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{pdfToDelete.file_name}&quot;? This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-4">
               <button
