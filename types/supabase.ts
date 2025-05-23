@@ -47,47 +47,6 @@ export interface Database {
           notes_generation_progress?: number
         }
       }
-      flashcards: {
-        Row: {
-          id: string
-          pdf_id: string
-          user_id: string
-          front_content: string
-          back_content: string
-          difficulty: 'easy' | 'medium' | 'hard'
-          last_reviewed: string | null
-          next_review: string | null
-          tags: string[]
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          pdf_id: string
-          user_id: string
-          front_content: string
-          back_content: string
-          difficulty?: 'easy' | 'medium' | 'hard'
-          last_reviewed?: string | null
-          next_review?: string | null
-          tags?: string[]
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          pdf_id?: string
-          user_id?: string
-          front_content?: string
-          back_content?: string
-          difficulty?: 'easy' | 'medium' | 'hard'
-          last_reviewed?: string | null
-          next_review?: string | null
-          tags?: string[]
-          created_at?: string
-          updated_at?: string
-        }
-      }
       submissions: {
         Row: {
           id: string
@@ -117,9 +76,6 @@ export interface Database {
           updated_at?: string
         }
       }
-    }
-    Enums: {
-      difficulty_level: 'easy' | 'medium' | 'hard'
     }
   }
 } 

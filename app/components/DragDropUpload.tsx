@@ -4,10 +4,6 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { uploadPDF } from '@/lib/db';
 import { useRouter } from 'next/navigation';
-import { useDropzone } from 'react-dropzone';
-import { createBrowserClient } from '@supabase/ssr';
-import { Database } from '@/types/supabase';
-import Notification from './Notification';
 
 interface DragDropUploadProps {
   onUploadSuccess: (pdfId: string) => void;
@@ -21,15 +17,6 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
-  const [notification, setNotification] = useState<{
-    message: string;
-    type: 'success' | 'error';
-    show: boolean;
-  }>({
-    message: '',
-    type: 'success',
-    show: false
-  });
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -110,97 +97,18 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
     }
   };
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
-
-    if (file.type !== 'application/pdf') {
-      setError('Please upload a PDF file');
-      setNotification({
-        message: 'Please upload a PDF file',
-        type: 'error',
-        show: true
-      });
-      return;
-    }
-
-    try {
-      setUploading(true);
-      setError(null);
-
-      const supabase = createBrowserClient<Database>(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-
-      // Upload file to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('pdfs')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('pdfs')
-        .getPublicUrl(fileName);
-
-      // Create PDF record in database
-      const { data: pdfData, error: dbError } = await supabase
-        .from('pdfs')
-        .insert([
-          {
-            name: file.name,
-            file_url: publicUrl,
-            status: 'pending'
-          }
-        ])
-        .select()
-        .single();
-
-      if (dbError) throw dbError;
-
-      setNotification({
-        message: 'PDF uploaded successfully!',
-        type: 'success',
-        show: true
-      });
-
-      if (onUploadSuccess) {
-        onUploadSuccess(pdfData.id);
-      }
-
-      if (onClose) {
-        onClose();
-      }
-
-      // Redirect to the PDF page
-      router.push(`/dashboard/${pdfData.id}`);
-    } catch (err) {
-      console.error('Error uploading PDF:', err);
-      setError('Failed to upload PDF');
-      setNotification({
-        message: 'Failed to upload PDF',
-        type: 'error',
-        show: true
-      });
-    } finally {
-      setUploading(false);
-    }
-  }, [onUploadSuccess, onClose, router]);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/pdf': ['.pdf']
-    },
-    multiple: false
-  });
-
   return (
     <div className="w-full max-w-3xl mx-auto">
+      <div className="flex justify-end mb-4">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="text-gray-600 hover:text-gray-800"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
       <div
         className={`relative border-2 border-dashed rounded-lg p-12 transition-colors ${
           isDragging
@@ -246,21 +154,6 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
         )}
       </div>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-
-      <button
-        onClick={onClose}
-        className="mt-4 w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-        disabled={uploading}
-      >
-        Cancel
-      </button>
-
-      <Notification
-        message={notification.message}
-        type={notification.type}
-        show={notification.show}
-        onClose={() => setNotification(prev => ({ ...prev, show: false }))}
-      />
     </div>
   );
 } 
