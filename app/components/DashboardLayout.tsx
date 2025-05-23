@@ -6,6 +6,9 @@ import { useAuth } from '../providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/supabase';
 import LogoutConfirmationModal from './LogoutConfirmationModal';
+import { createBrowserClient } from '@supabase/ssr';
+import PDFUploader from './PDFUploader';
+import Notification from './Notification';
 
 type PDF = Database['public']['Tables']['pdfs']['Row'];
 
@@ -33,6 +36,16 @@ export default function DashboardLayout({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [pdfToDelete, setPdfToDelete] = useState<PDF | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error';
+    show: boolean;
+  }>({
+    message: '',
+    type: 'success',
+    show: false
+  });
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -50,6 +63,11 @@ export default function DashboardLayout({
   const loadPDFs = useCallback(async () => {
     if (!user) return;
     try {
+      const supabase = createBrowserClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
       const { data, error } = await supabase
         .from('pdfs')
         .select('*')
@@ -107,6 +125,11 @@ export default function DashboardLayout({
 
     try {
       // Delete from storage
+      const supabase = createBrowserClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+
       const { error: storageError } = await supabase.storage
         .from('pdfs')
         .remove([`uploads/${pdfToDelete.file_name}`]);
@@ -123,6 +146,11 @@ export default function DashboardLayout({
 
       // Update local state
       setPdfs(pdfs.filter(pdf => pdf.id !== pdfToDelete.id));
+      setNotification({
+        message: 'PDF deleted successfully',
+        type: 'success',
+        show: true
+      });
     } catch (error) {
       console.error('Error deleting PDF:', error);
     } finally {
@@ -162,13 +190,23 @@ export default function DashboardLayout({
                       <p className="text-xs text-gray-500">
                         {new Date(pdf.created_at).toLocaleDateString()}
                       </p>
+                      <button
+                        className="mt-2 text-xs text-indigo-600 hover:underline bg-indigo-50 hover:bg-indigo-100 rounded px-2 py-1"
+                        onClick={e => {
+                          e.stopPropagation();
+                          router.push(`/dashboard/flashcards/${pdf.id}`);
+                        }}
+                      >
+                        Flashcards
+                      </button>
                     </div>
                     <button
                       onClick={(e) => handleDeleteClick(pdf, e)}
-                      className="p-1 hover:bg-gray-200 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      data-pdf-id={pdf.id}
+                      className="p-1 hover:bg-red-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <svg
-                        className="w-5 h-5 text-gray-500"
+                        className="w-5 h-5 text-red-500"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -177,7 +215,7 @@ export default function DashboardLayout({
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                         />
                       </svg>
                     </button>
@@ -261,8 +299,8 @@ export default function DashboardLayout({
 
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && pdfToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
+        <div className="fixed inset-0 backdrop-blur-sm bg-white/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
             <h3 className="text-lg font-semibold mb-4">Delete PDF</h3>
             <p className="text-gray-600 mb-6">
               Are you sure you want to delete &quot;{pdfToDelete.file_name}&quot;? This action cannot be undone.

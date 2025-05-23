@@ -1,145 +1,130 @@
 'use client'
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '../providers/AuthProvider';
-import DragDropUpload from '../components/DragDropUpload';
-import { getUserPDFs, deletePDF } from '@/lib/db';
-import type { Database } from '@/types/supabase';
-import Notification from '../components/Notification';
-import DashboardLayout from '../components/DashboardLayout';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createBrowserClient } from '@supabase/ssr'
+import { Database } from '@/types/supabase'
+import DashboardLayout from '../components/DashboardLayout'
+import PDFUploader from '../components/PDFUploader'
+import Notification from '../components/Notification'
 
-type PDF = Database['public']['Tables']['pdfs']['Row'];
+type PDF = Database['public']['Tables']['pdfs']['Row']
 
 export default function Dashboard() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [pdfs, setPdfs] = useState<PDF[]>([]);
-  const [loadingPDFs, setLoadingPDFs] = useState(true);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [notification, setNotification] = useState({
-    show: false,
+  const router = useRouter()
+  const [pdfs, setPDFs] = useState<PDF[]>([])
+  const [loading, setLoading] = useState(true)
+  const [notification, setNotification] = useState<{
+    message: string
+    type: 'success' | 'error'
+    show: boolean
+  }>({
     message: '',
-    type: 'success' as 'success' | 'error'
-  });
+    type: 'success',
+    show: false
+  })
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/');
-    }
-  }, [user, loading, router]);
-
-  useEffect(() => {
-    if (user) {
-      loadPDFs();
-    }
-  }, [user]);
+    loadPDFs()
+  }, [])
 
   const loadPDFs = async () => {
-    if (!user) return;
     try {
-      const userPDFs = await getUserPDFs(user.id);
-      setPdfs(userPDFs);
+      const supabase = createBrowserClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('pdfs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      setPDFs(data || [])
     } catch (err) {
-      console.error('Error loading PDFs:', err);
+      console.error('Error loading PDFs:', err)
+      setNotification({
+        message: 'Failed to load PDFs',
+        type: 'error',
+        show: true
+      })
     } finally {
-      setLoadingPDFs(false);
+      setLoading(false)
     }
-  };
-
-  const handleUploadSuccess = (pdfId: string) => {
-    loadPDFs();
-    setShowUploadModal(false);
-    router.push(`/dashboard/${pdfId}`);
-    setNotification({
-      show: true,
-      message: 'Notes generated successfully!',
-      type: 'success'
-    });
-  };
-
-  const handleDeletePDF = async (pdfId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent navigation when clicking delete
-    if (!user) return;
-
-    if (!window.confirm('Are you sure you want to delete this PDF?')) {
-      return;
-    }
-
-    try {
-      await deletePDF(pdfId, user.id);
-      await loadPDFs();
-      setNotification({
-        show: true,
-        message: 'PDF deleted successfully',
-        type: 'success'
-      });
-    } catch (err) {
-      console.error('Error deleting PDF:', err);
-      setNotification({
-        show: true,
-        message: 'Failed to delete PDF',
-        type: 'error'
-      });
-    }
-  };
-
-  // Only show loading state when initially checking auth
-  if (loading && !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null; // Will redirect in useEffect
   }
 
   return (
     <DashboardLayout>
-      <Notification
-        show={notification.show}
-        message={notification.message}
-        type={notification.type}
-        onClose={() => setNotification(prev => ({ ...prev, show: false }))}
-      />
-
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-4">Upload PDF</h2>
-        <DragDropUpload onUploadSuccess={handleUploadSuccess} />
-      </div>
-
-      {/* Upload Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-30">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Upload New PDF</h2>
-              <button
-                onClick={() => setShowUploadModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-            <DragDropUpload onUploadSuccess={handleUploadSuccess} />
-          </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Your PDFs</h1>
+          <button
+            onClick={() => router.push('/dashboard/upload')}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          >
+            Upload PDF
+          </button>
         </div>
-      )}
+
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="text-gray-500">Loading PDFs...</div>
+          </div>
+        ) : pdfs.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-500">No PDFs uploaded yet</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {pdfs.map((pdf) => (
+              <div
+                key={pdf.id}
+                onClick={() => router.push(`/dashboard/${pdf.id}`)}
+                className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow cursor-pointer group relative"
+              >
+                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                  {pdf.file_name}
+                </h3>
+                <div className="flex justify-end">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const event = new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window
+                      });
+                      const deleteButton = document.querySelector(`[data-pdf-id="${pdf.id}"]`);
+                      if (deleteButton) {
+                        deleteButton.dispatchEvent(event);
+                      }
+                    }}
+                    className="text-red-500 hover:text-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          show={notification.show}
+          onClose={() => setNotification(prev => ({ ...prev, show: false }))}
+        />
+      </div>
     </DashboardLayout>
-  );
+  )
 } 
