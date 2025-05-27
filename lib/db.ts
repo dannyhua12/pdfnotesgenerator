@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import type { Database } from '@/types/supabase';
 
 export async function uploadPDF(file: File, userId: string): Promise<string> {
   try {

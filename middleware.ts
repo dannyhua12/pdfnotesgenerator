@@ -60,8 +60,10 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Protect dashboard routes
-  if (req.nextUrl.pathname.startsWith('/dashboard')) {
+  // Protect routes
+  if (req.nextUrl.pathname.startsWith('/upload') || 
+      req.nextUrl.pathname.startsWith('/[pdfId]') ||
+      req.nextUrl.pathname.match(/^\/[a-zA-Z0-9-]+$/)) {
     if (!session) {
       return NextResponse.redirect(new URL('/', req.url));
     }
@@ -72,7 +74,9 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/dashboard/:path*',
+    '/upload',
+    '/[pdfId]',
+    '/:path*',
     '/api/:path*',
   ],
 }; 

@@ -46,8 +46,8 @@ export default function Home() {
       });
       if (error) throw error;
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
@@ -67,8 +67,8 @@ export default function Home() {
       if (error) throw error;
       // Show success message or redirect
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 

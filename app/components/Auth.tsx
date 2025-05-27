@@ -42,7 +42,7 @@ export default function Auth() {
       });
       if (error) throw error;
       if (data.user) {
-        router.push('/dashboard');
+        router.push('/');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

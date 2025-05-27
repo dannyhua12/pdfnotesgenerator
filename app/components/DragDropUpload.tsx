@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { uploadPDF } from '@/lib/db';
-import { useRouter } from 'next/navigation';
 
 interface DragDropUploadProps {
   onUploadSuccess: (pdfId: string) => void;
@@ -12,7 +11,6 @@ interface DragDropUploadProps {
 
 export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUploadProps) {
   const { user } = useAuth();
-  const router = useRouter();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../providers/AuthProvider';
 import DragDropUpload from '../components/DragDropUpload';
@@ -23,6 +23,18 @@ export default function Dashboard() {
     type: 'success' as 'success' | 'error'
   });
 
+  const loadPDFs = useCallback(async () => {
+    if (!user) return;
+    try {
+      const userPDFs = await getUserPDFs(user.id);
+      setPdfs(userPDFs);
+    } catch (err) {
+      console.error('Error loading PDFs:', err);
+    } finally {
+      setLoadingPDFs(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (!loading && !user) {
       router.push('/');
@@ -33,24 +45,12 @@ export default function Dashboard() {
     if (user) {
       loadPDFs();
     }
-  }, [user]);
-
-  const loadPDFs = async () => {
-    if (!user) return;
-    try {
-      const userPDFs = await getUserPDFs(user.id);
-      setPdfs(userPDFs);
-    } catch (err) {
-      console.error('Error loading PDFs:', err);
-    } finally {
-      setLoadingPDFs(false);
-    }
-  };
+  }, [user, loadPDFs]);
 
   const handleUploadSuccess = (pdfId: string) => {
     loadPDFs();
     setShowUploadModal(false);
-    router.push(`/dashboard/${pdfId}`);
+    router.push(`${pdfId}`);
     setNotification({
       show: true,
       message: 'Notes generated successfully!',
@@ -109,6 +109,41 @@ export default function Dashboard() {
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-4">Upload PDF</h2>
         <DragDropUpload onUploadSuccess={handleUploadSuccess} />
+      </div>
+
+      {/* PDF List */}
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold mb-4">Your PDFs</h2>
+        {loadingPDFs ? (
+          <div>Loading PDFs...</div>
+        ) : pdfs.length === 0 ? (
+          <p>No PDFs uploaded yet</p>
+        ) : (
+          <div className="grid gap-4">
+            {pdfs.map((pdf) => (
+              <div
+                key={pdf.id}
+                className="border rounded p-4 flex justify-between items-center hover:bg-gray-50 cursor-pointer"
+                onClick={() => router.push(`/${pdf.id}`)}
+              >
+                <div>
+                  <h3 className="font-semibold">{pdf.file_name}</h3>
+                  <p className="text-sm text-gray-500">
+                    Uploaded: {new Date(pdf.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={(e) => handleDeletePDF(pdf.id, e)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Upload Modal */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { uploadPDF, getUserPDFs } from '@/lib/db';
 import type { Database } from '@/types/supabase';
@@ -13,13 +13,7 @@ export default function PDFUploader() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) {
-      loadPDFs();
-    }
-  }, [user]);
-
-  const loadPDFs = async () => {
+  const loadPDFs = useCallback(async () => {
     if (!user) return;
     try {
       const userPDFs = await getUserPDFs(user.id);
@@ -28,7 +22,13 @@ export default function PDFUploader() {
       console.error('Error loading PDFs:', err);
       setError('Failed to load PDFs');
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadPDFs();
+    }
+  }, [user, loadPDFs]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!user || !e.target.files || !e.target.files[0]) return;

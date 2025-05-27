@@ -1,15 +1,12 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/app/providers/AuthProvider'
-import DashboardLayout from '@/app/components/DashboardLayout'
 import DragDropUpload from '@/app/components/DragDropUpload'
 import Notification from '@/app/components/Notification'
 import { useState } from 'react'
 
 export default function UploadPage() {
   const router = useRouter()
-  const { user } = useAuth()
   const [notification, setNotification] = useState<{
     message: string
     type: 'success' | 'error'
@@ -26,15 +23,11 @@ export default function UploadPage() {
       type: 'success',
       show: true
     })
-    router.push(`/dashboard/${pdfId}?new=true`)
+    router.push(`/${pdfId}?new=true`)
   }
 
   return (
-    <DashboardLayout
-      title="Upload PDF"
-      showBackButton
-      onBackClick={() => router.push('/dashboard')}
-    >
+    <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
@@ -49,7 +42,7 @@ export default function UploadPage() {
           <div className="bg-white rounded-lg shadow-lg p-8">
             <DragDropUpload
               onUploadSuccess={handleUploadSuccess}
-              onClose={() => router.push('/dashboard')}
+              onClose={() => router.push('/')}
             />
           </div>
         </div>
@@ -61,6 +54,6 @@ export default function UploadPage() {
         show={notification.show}
         onClose={() => setNotification(prev => ({ ...prev, show: false }))}
       />
-    </DashboardLayout>
+    </div>
   )
 } 

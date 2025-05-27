@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.concat(chunks);
 
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from("pdfs")
       .upload(`uploads/${safeFilename}`, buffer, {
         contentType: "application/pdf",
