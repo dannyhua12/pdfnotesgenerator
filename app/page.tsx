@@ -61,7 +61,7 @@ export default function Home() {
           data: {
             full_name: name,
           },
-          emailRedirectTo: 'https://pdfnotesgenerator.vercel.app/auth/callback',
+          emailRedirectTo: 'https://pdfnotesgenerator.vercel.app/dashboard',
         },
       });
       if (error) throw error;

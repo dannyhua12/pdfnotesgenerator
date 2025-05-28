@@ -41,6 +41,14 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
       return;
     }
 
+    // Check file size (10MB = 10 * 1024 * 1024 bytes)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    const oversizedFiles = pdfFiles.filter(file => file.size > MAX_FILE_SIZE);
+    if (oversizedFiles.length > 0) {
+      setError('File size too large. Maximum size is 10MB');
+      return;
+    }
+
     setUploading(true);
     setError(null);
 
@@ -70,6 +78,14 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
 
     if (pdfFiles.length === 0) {
       setError('Please upload PDF files only');
+      return;
+    }
+
+    // Check file size (10MB = 10 * 1024 * 1024 bytes)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    const oversizedFiles = pdfFiles.filter(file => file.size > MAX_FILE_SIZE);
+    if (oversizedFiles.length > 0) {
+      setError('File size too large. Maximum size is 10MB');
       return;
     }
 
