@@ -1,9 +1,34 @@
 'use client'
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from './providers/AuthProvider';
 import { supabase } from '@/lib/supabase';
+
+// Separate component for success message
+function SuccessMessage() {
+  const searchParams = useSearchParams();
+  const [successMessage, setSuccessMessage] = useState('');
+
+  useEffect(() => {
+    const message = searchParams.get('message');
+    if (message) {
+      setSuccessMessage(message);
+      // Clear the message from the URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('message');
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [searchParams]);
+
+  if (!successMessage) return null;
+
+  return (
+    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50">
+      {successMessage}
+    </div>
+  );
+}
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -86,6 +111,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+      <Suspense fallback={null}>
+        <SuccessMessage />
+      </Suspense>
       {/* Navigation Bar */}
       <nav className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
