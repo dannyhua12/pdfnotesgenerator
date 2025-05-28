@@ -39,6 +39,7 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [signupSuccess, setSignupSuccess] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -90,8 +91,8 @@ export default function Home() {
         },
       });
       if (error) throw error;
-      // Show success message or redirect
-      router.push('/dashboard');
+      setSignupSuccess(true);
+      setShowSignUp(false);
     } catch (err: Error | unknown) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
@@ -114,6 +115,11 @@ export default function Home() {
       <Suspense fallback={null}>
         <SuccessMessage />
       </Suspense>
+      {signupSuccess && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded z-50">
+          A confirmation email has been sent to {email}. Please check your inbox to complete your registration.
+        </div>
+      )}
       {/* Navigation Bar */}
       <nav className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
