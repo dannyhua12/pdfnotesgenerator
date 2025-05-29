@@ -47,9 +47,8 @@ export default function PDFUploader() {
       await loadPDFs(); // Reload the PDFs list
       e.target.value = ''; // Reset the input
     } catch (err) {
-      console.error('Error uploading:', err);
-      setError('Failed to upload PDF');
-    } finally {
+      console.error('Error uploading file:', err);
+      setError('Failed to upload file. Please try again.');
       setUploading(false);
     }
   };

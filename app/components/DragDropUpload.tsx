@@ -62,10 +62,9 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
         onUploadSuccess(pdfId);
       }
     } catch (err) {
-      console.error('Error uploading:', err);
-      setError('Failed to upload PDF');
+      console.error('Error uploading file:', err);
+      setError('Failed to upload file. Please try again.');
       setStatus('');
-    } finally {
       setUploading(false);
     }
   }, [user, onUploadSuccess]);
@@ -103,10 +102,9 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
       }
       e.target.value = ''; // Reset input
     } catch (err) {
-      console.error('Error uploading:', err);
-      setError('Failed to upload PDF');
+      console.error('Error uploading file:', err);
+      setError('Failed to upload file. Please try again.');
       setStatus('');
-    } finally {
       setUploading(false);
     }
   };

@@ -28,6 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
+          console.error('Error signing in:', error);
           throw error;
         }
         
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
               if (event === 'TOKEN_REFRESHED') {
-                console.log('Token refreshed successfully');
+                // Token refreshed successfully
               }
               setUser(session?.user ?? null);
             }
@@ -51,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
         }
       } catch (error) {
-        console.error('Error checking auth session:', error);
+        console.error('Error in initializeAuth:', error);
         setUser(null);
       } finally {
         setLoading(false);
@@ -81,12 +82,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const handleSignOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (error) {
+        console.error('Error signing out:', error);
+        throw error;
+      }
       
       setUser(null);
       router.push('/');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Error in handleSignOut:', error);
+      // Error signing out
     } finally {
       setLoading(false);
     }

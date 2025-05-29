@@ -7,14 +7,11 @@ export async function uploadPDF(file: File, userId: string): Promise<string> {
       throw new Error('File must be a PDF');
     }
 
-    console.log('Starting PDF upload process...');
-
     // 1. Upload file to Supabase Storage
     const fileExt = file.name.split('.').pop();
     const storageFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const filePath = `${userId}/${storageFileName}`;
 
-    console.log('Uploading to Supabase storage...');
     const { data: fileData, error: uploadError } = await supabase.storage
       .from('pdfs')
       .upload(filePath, file, {
@@ -23,15 +20,12 @@ export async function uploadPDF(file: File, userId: string): Promise<string> {
       });
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
       throw new Error('Failed to upload file to storage');
     }
 
     if (!fileData) {
       throw new Error('No upload data returned');
     }
-
-    console.log('File uploaded successfully, getting public URL...');
 
     // 2. Get the public URL
     const { data: { publicUrl } } = supabase.storage
@@ -41,8 +35,6 @@ export async function uploadPDF(file: File, userId: string): Promise<string> {
     if (!publicUrl) {
       throw new Error('Failed to get public URL');
     }
-
-    console.log('Creating database entry...');
 
     // 3. Create database entry
     const { data: pdfData, error: insertError } = await supabase
@@ -62,15 +54,12 @@ export async function uploadPDF(file: File, userId: string): Promise<string> {
         .from('pdfs')
         .remove([filePath]);
       
-      console.error('Database insert error:', insertError);
       throw new Error(`Failed to create database entry: ${insertError.message}`);
     }
 
     if (!pdfData) {
       throw new Error('No data returned from database insert');
     }
-
-    console.log('Database entry created, starting notes generation...');
 
     // 4. Generate notes
     try {
@@ -88,12 +77,10 @@ export async function uploadPDF(file: File, userId: string): Promise<string> {
 
       if (!notesResponse.ok) {
         const errorData = await notesResponse.json();
-        console.error('Notes generation failed:', errorData);
         throw new Error(errorData.error || 'Failed to generate notes');
       }
 
       const notesData = await notesResponse.json();
-      console.log('Notes generated successfully');
 
       // Update the PDF record with the generated notes
       const { error: updateError } = await supabase
@@ -102,20 +89,15 @@ export async function uploadPDF(file: File, userId: string): Promise<string> {
         .eq('id', pdfData.id);
 
       if (updateError) {
-        console.error('Error updating PDF with notes:', updateError);
         throw new Error('Failed to save notes to database');
       }
-
-      console.log('Notes saved to database successfully');
     } catch (notesError) {
-      console.error('Error in notes generation process:', notesError);
-      // Don't throw here, as the PDF is already uploaded
-      // Just log the error and continue
+      console.error('Error fetching notes:', notesError);
+      throw notesError;
     }
 
     return pdfData.id;
   } catch (error) {
-    console.error('Error in uploadPDF:', error);
     throw error instanceof Error ? error : new Error('An unknown error occurred');
   }
 }
@@ -190,7 +172,6 @@ export async function deletePDF(pdfId: string, userId: string): Promise<void> {
         .remove([`${userId}/${filePath}`]);
 
       if (storageError) {
-        console.error('Error deleting file from storage:', storageError);
         throw new Error('Failed to delete file from storage');
       }
     }
@@ -206,7 +187,6 @@ export async function deletePDF(pdfId: string, userId: string): Promise<void> {
       throw new Error('Failed to delete PDF record');
     }
   } catch (error) {
-    console.error('Error in deletePDF:', error);
     throw error instanceof Error ? error : new Error('An unknown error occurred');
   }
 } 

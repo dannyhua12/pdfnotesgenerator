@@ -75,7 +75,6 @@ export async function POST(req: NextRequest) {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      console.error('No session found in upload route');
       return NextResponse.json(
         { error: "Unauthorized - No valid session" },
         { status: 401 }
@@ -143,9 +142,9 @@ export async function POST(req: NextRequest) {
       });
 
     if (error) {
-      console.error("Supabase upload error:", error);
+      console.error('Error uploading file:', error);
       return NextResponse.json(
-        { error: "Failed to upload file to storage" },
+        { error: "Failed to upload file" },
         { status: 500 }
       );
     }
@@ -180,7 +179,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, publicUrl });
   } catch (error) {
-    console.error("Error in upload route:", error);
+    console.error('Error in upload route:', error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
