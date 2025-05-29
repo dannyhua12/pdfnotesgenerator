@@ -41,8 +41,8 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
       return;
     }
 
-    // Check file size
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    // Check file size (10MB = 10 * 1024 * 1024 bytes)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
     const oversizedFiles = pdfFiles.filter(file => file.size > MAX_FILE_SIZE);
     if (oversizedFiles.length > 0) {
       setError('File size too large. Maximum size is 10MB');
@@ -62,10 +62,9 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
         onUploadSuccess(pdfId);
       }
     } catch (err) {
-      console.error('Error uploading:', err);
-      setError('Failed to upload PDF');
+      console.error('Error uploading file:', err);
+      setError('Failed to upload file. Please try again.');
       setStatus('');
-    } finally {
       setUploading(false);
     }
   }, [user, onUploadSuccess]);
@@ -81,8 +80,8 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
       return;
     }
 
-    // Check file size
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    // Check file size (10MB = 10 * 1024 * 1024 bytes)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
     const oversizedFiles = pdfFiles.filter(file => file.size > MAX_FILE_SIZE);
     if (oversizedFiles.length > 0) {
       setError('File size too large. Maximum size is 10MB');
@@ -103,10 +102,9 @@ export default function DragDropUpload({ onUploadSuccess, onClose }: DragDropUpl
       }
       e.target.value = ''; // Reset input
     } catch (err) {
-      console.error('Error uploading:', err);
-      setError('Failed to upload PDF');
+      console.error('Error uploading file:', err);
+      setError('Failed to upload file. Please try again.');
       setStatus('');
-    } finally {
       setUploading(false);
     }
   };

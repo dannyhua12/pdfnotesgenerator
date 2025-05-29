@@ -87,7 +87,7 @@ export default function Home() {
           data: {
             full_name: name,
           },
-          emailRedirectTo: 'https://pdfnotesgenerator.vercel.app/auth/callback',
+          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
         },
       });
       if (error) throw error;
@@ -111,7 +111,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-white via-blue-50 to-indigo-50">
       <Suspense fallback={null}>
         <SuccessMessage />
       </Suspense>
@@ -121,22 +121,22 @@ export default function Home() {
         </div>
       )}
       {/* Navigation Bar */}
-      <nav className="bg-white shadow">
+      <nav className="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <div className="flex-shrink-0">
-              <h1 className="text-xl font-bold text-gray-900">PDF Notes Generator</h1>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">PDF Notes Generator</h1>
             </div>
             <div className="flex gap-4">
               <button
                 onClick={handleSignIn}
-                className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+                className="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors font-medium"
               >
                 Sign In
               </button>
               <button
                 onClick={handleSignUp}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
               >
                 Sign Up
               </button>
@@ -148,19 +148,19 @@ export default function Home() {
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center py-24 sm:py-32">
-          <h1 className="text-4xl sm:text-6xl font-bold text-gray-900 mb-6">
+          <h1 className="text-5xl sm:text-7xl font-bold text-gray-900 mb-8 leading-tight">
             Transform Your PDFs into
             <br />
-            <span className="text-blue-600">Smart Study Notes</span>
+            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Smart Study Notes</span>
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed mb-12">
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
             Upload your study materials and get AI-generated summaries, key points, and flashcards—instantly.
             <br />
             No more scrolling. Just smarter studying.
           </p>
           <button
             onClick={handleGetStarted}
-            className="px-8 py-4 bg-blue-500 text-white text-lg rounded-lg hover:bg-blue-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-transform"
+            className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-lg rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
           >
             Get Started
           </button>
@@ -168,34 +168,34 @@ export default function Home() {
 
         {/* Features Grid */}
         <div className="grid md:grid-cols-3 gap-8 py-16">
-          <div className="bg-white rounded-xl shadow-lg p-6 text-center">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center transform hover:-translate-y-2 transition-all duration-300">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Smart Summaries</h3>
-            <p className="text-gray-600">AI-powered notes that capture key concepts and important details.</p>
+            <h3 className="text-2xl font-semibold mb-4 text-gray-900">Smart Summaries</h3>
+            <p className="text-gray-600 leading-relaxed">AI-powered notes that capture key concepts and important details from your study materials.</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg p-6 text-center">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center transform hover:-translate-y-2 transition-all duration-300">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Instant Generation</h3>
-            <p className="text-gray-600">Get your study materials processed and organized in seconds.</p>
+            <h3 className="text-2xl font-semibold mb-4 text-gray-900">Instant Generation</h3>
+            <p className="text-gray-600 leading-relaxed">Get your study materials processed and organized in seconds with our advanced AI technology.</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg p-6 text-center">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center transform hover:-translate-y-2 transition-all duration-300">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Customizable Format</h3>
-            <p className="text-gray-600">Get your notes in the format that works best for you.</p>
+            <h3 className="text-2xl font-semibold mb-4 text-gray-900">Customizable Format</h3>
+            <p className="text-gray-600 leading-relaxed">Get your notes in the format that works best for you, from concise summaries to detailed flashcards.</p>
           </div>
         </div>
       </main>
@@ -203,12 +203,12 @@ export default function Home() {
       {/* Auth Modals */}
       {showSignIn && (
         <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-xl transform transition-all duration-300">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Sign In</h2>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Sign In</h2>
               <button
                 onClick={() => setShowSignIn(false)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -216,7 +216,7 @@ export default function Home() {
               </button>
             </div>
             {error && (
-              <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-md text-sm">
+              <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm">
                 {error}
               </div>
             )}

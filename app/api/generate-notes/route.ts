@@ -106,7 +106,6 @@ export async function POST(request: NextRequest) {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      console.error('No session found in generate-notes route');
       return NextResponse.json(
         { error: "Unauthorized - No valid session" },
         { status: 401 }
@@ -121,12 +120,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Starting notes generation process...');
     const body = await request.json();
     const { pdfId, fileUrl } = body;
 
     if (!pdfId || !fileUrl) {
-      console.error('Missing parameters:', { pdfId, fileUrl });
       return NextResponse.json({ error: "Missing required parameters" }, { status: 400 });
     }
 
@@ -139,7 +136,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (pdfError || !pdf) {
-      console.error('PDF ownership verification failed:', pdfError);
       return NextResponse.json(
         { error: "PDF not found or unauthorized" },
         { status: 404 }
@@ -154,26 +150,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Fetching PDF from URL:', fileUrl);
     const response = await fetch(fileUrl);
     if (!response.ok) {
-      console.error('Failed to fetch PDF:', response.status, response.statusText);
       throw new Error('Failed to fetch PDF from storage');
     }
 
-    console.log('Converting PDF to buffer...');
     const pdfBuffer = await response.arrayBuffer();
     const pdfBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
     
-    console.log('Loading PDF content...');
     const loader = new PDFLoader(pdfBlob);
     const docs = await loader.load();
     const text = docs.map((doc: Document) => doc.pageContent).join("\n\n");
 
-    console.log('PDF content loaded, estimating token count...');
     const estimatedTokens = text.length / 4;
     if (estimatedTokens > MAX_TOKENS) {
-      console.error('Token limit exceeded:', estimatedTokens);
       return NextResponse.json(
         { error: "PDF content too large to process. Please use a shorter document." },
         { status: 400 }
@@ -216,7 +206,6 @@ export async function POST(request: NextRequest) {
 
       const content = completion.choices[0].message.content;
       if (!content) {
-        console.error('No content generated for chunk', index);
         return `Error: No content generated for section ${index + 1}`;
       }
 
@@ -247,9 +236,6 @@ export async function POST(request: NextRequest) {
     const toc = generateTableOfContents(notes);
     const finalNotes = `${toc}\n\n${notes}`;
 
-    console.log('Notes generated successfully');
-
-    console.log('Updating database with notes...');
     const { error: updateError } = await supabase
       .from('pdfs')
       .update({ notes: finalNotes })
@@ -257,17 +243,15 @@ export async function POST(request: NextRequest) {
       .eq('user_id', session.user.id);
 
     if (updateError) {
-      console.error('Error updating PDF with notes:', updateError);
       return NextResponse.json(
         { error: "Failed to save notes" },
         { status: 500 }
       );
     }
 
-    console.log('Notes saved to database successfully');
     return NextResponse.json({ success: true, notes: finalNotes });
   } catch (error) {
-    console.error('Error in generate-notes route:', error);
+    console.error('Error generating notes:', error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
