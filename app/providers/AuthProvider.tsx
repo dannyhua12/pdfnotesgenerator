@@ -81,17 +81,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleSignOut = async () => {
     try {
+      // Clear local state first
+      setUser(null);
+      
+      // Attempt to sign out from Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Error signing out:', error);
         throw error;
       }
       
-      setUser(null);
-      router.push('/');
+      // Clear any local storage items
+      localStorage.removeItem('supabase.auth.token');
+      
+      // Force a hard redirect to home page
+      window.location.href = '/';
     } catch (error) {
       console.error('Error in handleSignOut:', error);
-      // Error signing out
+      // Even if there's an error, try to redirect
+      window.location.href = '/';
     } finally {
       setLoading(false);
     }
